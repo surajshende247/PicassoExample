@@ -15,6 +15,7 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
         imgShow =findViewById(R.id.imgShow);
 
+        //Picasso Code starts from here
         Picasso.get()
                 .load("https://upload.wikimedia.org/wikipedia/commons/thumb/e/e2/Android_11.svg/1200px-Android_11.svg.png")
                 .placeholder(R.drawable.loading)
