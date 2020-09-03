@@ -1,0 +1,200 @@
+package com.subjibag.app;
+
+import androidx.annotation.NonNull;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
+
+import android.app.Activity;
+import android.app.ProgressDialog;
+import android.os.Bundle;
+import android.util.Log;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.ImageView;
+import android.widget.TextView;
+
+import com.android.volley.AuthFailureError;
+import com.android.volley.Request;
+import com.android.volley.RequestQueue;
+import com.android.volley.Response;
+import com.android.volley.VolleyError;
+import com.android.volley.toolbox.StringRequest;
+import com.android.volley.toolbox.Volley;
+import com.google.android.gms.ads.AdRequest;
+import com.google.android.gms.ads.AdView;
+import com.google.android.gms.ads.MobileAds;
+import com.google.android.gms.ads.initialization.InitializationStatus;
+import com.google.android.gms.ads.initialization.OnInitializationCompleteListener;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.database.DataSnapshot;
+import com.google.firebase.database.DatabaseError;
+import com.google.firebase.database.DatabaseReference;
+import com.google.firebase.database.FirebaseDatabase;
+import com.google.firebase.database.ValueEventListener;
+import com.squareup.picasso.Picasso;
+
+import org.json.JSONArray;
+import org.json.JSONException;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
+
+public class MyCart extends AppCompatActivity {
+    private AdView mAdView;
+    MyCartAdapter adapter;
+    RecyclerView recyclerView;
+    ProgressDialog progressDialog;
+    ArrayList<CartData> arrayListCart = new ArrayList<>();
+
+    FirebaseUser currentUser;
+    FirebaseAuth mAuth;
+
+
+    int total_amount=0;
+    int reward_amount=0;
+    int final_amount=0;
+
+    TextView tvAmount;
+    TextView tvReward;
+
+    FirebaseDatabase database;
+    DatabaseReference myRef;
+
+    int coins=0;
+    int rupees=0;
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_my_cart);
+        getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+        getSupportActionBar().setDisplayShowHomeEnabled(true);
+
+        tvAmount = findViewById(R.id.tvAmount);
+        tvReward = findViewById(R.id.tvReward);
+
+        recyclerView = findViewById(R.id.recyclerviewCart);
+        recyclerView.setLayoutManager(new LinearLayoutManager(this));
+        mAuth = FirebaseAuth.getInstance();
+        currentUser = mAuth.getCurrentUser();
+
+        //ad loading
+        MobileAds.initialize(this, new OnInitializationCompleteListener() {
+            @Override
+            public void onInitializationComplete(InitializationStatus initializationStatus) {
+            }
+        });
+        mAdView = findViewById(R.id.adView);
+        AdRequest adRequest = new AdRequest.Builder().build();
+        mAdView.loadAd(adRequest);
+        progressDialog = new ProgressDialog(this);
+        progressDialog.setTitle("Please Wait...");
+
+
+        progressDialog.show();
+        sendAndRequestResponse();
+    }
+    private void sendAndRequestResponse() {
+        total_amount=0;
+         String url = "http://subjibag.esy.es/user_app/getCart.php";
+
+        //RequestQueue initialized
+        RequestQueue mRequestQueue = Volley.newRequestQueue(this);
+
+        //String Request initialized
+        StringRequest mStringRequest = new StringRequest(Request.Method.POST, url, new Response.Listener<String>() {
+            @Override
+            public void onResponse(String response) {
+
+                Log.i("TAG","Response FOR CART  :" + response);
+
+                String jsonresponse = response;
+                try {
+                    JSONArray arr = new JSONArray(jsonresponse);
+                    for (int i = 0; i < arr.length(); i++) {
+                        arrayListCart.add(new CartData(
+                                arr.getJSONObject(i).getString("id"),
+                                arr.getJSONObject(i).getString("product_id"),
+                                arr.getJSONObject(i).getString("quantity"),
+                                arr.getJSONObject(i).getString("price"),
+                                arr.getJSONObject(i).getString("product_url"),
+                                arr.getJSONObject(i).getString("product_name"),
+                                arr.getJSONObject(i).getString("product_weight")));
+                        total_amount+=( Integer.parseInt(arr.getJSONObject(i).getString("price"))*Integer.parseInt(arr.getJSONObject(i).getString("quantity")));
+                    }
+
+                    tvAmount.setText("Total = ₹"+total_amount);
+
+                    // Write a message to the database
+                    database = FirebaseDatabase.getInstance();
+
+                    myRef = database.getReference("coins").child(currentUser.getUid());
+                    // Read from the database
+                    myRef.addValueEventListener(new ValueEventListener() {
+                        @Override
+                        public void onDataChange(DataSnapshot dataSnapshot) {
+                            // This method is called once with the initial value and again
+                            // whenever data at this location is updated.
+                            //  String value = dataSnapshot.getValue(String.class);
+                            if(dataSnapshot.getValue()!=null) {
+                                coins = Integer.parseInt(dataSnapshot.getValue().toString());
+                            }
+                            rupees=coins/21;
+                            tvReward.setText("Reward = ₹"+rupees);
+                            Log.d("TAG", "Value is: " + dataSnapshot);
+                        }
+
+                        @Override
+                        public void onCancelled(DatabaseError error) {
+                            // Failed to read value
+                            tvReward.setText("Reward = ₹"+rupees);
+                            Log.w("TAG", "Failed to read value.", error.toException());
+                        }
+                    });
+
+
+                    progressDialog.dismiss();
+                } catch (JSONException e) {
+                    e.printStackTrace();
+                }
+                adapter = new MyCartAdapter(arrayListCart);
+                recyclerView.setAdapter(adapter);
+
+
+            }
+        }, new Response.ErrorListener() {
+            @Override
+            public void onErrorResponse(VolleyError error) {
+                //Log.i("TAG","Error :" + error.toString());
+            }
+        }){
+            @Override
+            protected Map<String,String> getParams() throws AuthFailureError {
+                Map<String,String> params = new HashMap<String,String>();
+                params.put("user_id",currentUser.getUid());
+                return  params;
+            }
+        };
+
+        mRequestQueue.add(mStringRequest);
+    }
+
+    public class CartData{
+        String id;
+        String product_id;
+        String quantity;
+        String price;
+        String product_url;
+        String product_name;
+        String product_weight;
+
+        public CartData(String id, String product_id, String quantity, String price, String product_url, String product_name, String product_weight) {
+            this.id = id;
+            this.product_id = product_id;
+            this.quantity = quantity;
+            this.price = price;
+            this.product_url = product_url;
+            this.product_name = prod

@@ -1,0 +1,275 @@
+package com.subjibag.app;
+
+import androidx.annotation.NonNull;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
+
+import android.app.Activity;
+import android.app.ProgressDialog;
+import android.os.Bundle;
+import android.util.Log;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewGroup;
+import android.widget.ImageView;
+import android.widget.TextView;
+
+import com.android.volley.AuthFailureError;
+import com.android.volley.Request;
+import com.android.volley.RequestQueue;
+import com.android.volley.Response;
+import com.android.volley.VolleyError;
+import com.android.volley.toolbox.StringRequest;
+import com.android.volley.toolbox.Volley;
+import com.google.android.gms.ads.AdRequest;
+import com.google.android.gms.ads.AdView;
+import com.google.android.gms.ads.MobileAds;
+import com.google.android.gms.ads.initialization.InitializationStatus;
+import com.google.android.gms.ads.initialization.OnInitializationCompleteListener;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseUser;
+import com.squareup.picasso.Picasso;
+
+import org.json.JSONArray;
+import org.json.JSONException;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
+
+public class MyCart extends AppCompatActivity {
+    private AdView mAdView;
+    MyCartAdapter adapter;
+    RecyclerView recyclerView;
+    ProgressDialog progressDialog;
+    ArrayList<CartData> arrayListCart = new ArrayList<>();
+
+    FirebaseUser currentUser;
+    FirebaseAuth mAuth;
+
+
+    int total_amount=0;
+    int reward_amount=0;
+    int final_amount=0;
+
+    TextView tvAmount;
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_my_cart);
+        getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+        getSupportActionBar().setDisplayShowHomeEnabled(true);
+
+        tvAmount = findViewById(R.id.tvAmount);
+
+        recyclerView = findViewById(R.id.recyclerviewCart);
+        recyclerView.setLayoutManager(new LinearLayoutManager(this));
+        mAuth = FirebaseAuth.getInstance();
+        currentUser = mAuth.getCurrentUser();
+
+        //ad loading
+        MobileAds.initialize(this, new OnInitializationCompleteListener() {
+            @Override
+            public void onInitializationComplete(InitializationStatus initializationStatus) {
+            }
+        });
+        mAdView = findViewById(R.id.adView);
+        AdRequest adRequest = new AdRequest.Builder().build();
+        mAdView.loadAd(adRequest);
+        progressDialog = new ProgressDialog(this);
+        progressDialog.setTitle("Please Wait...");
+
+
+        progressDialog.show();
+        sendAndRequestResponse();
+    }
+    private void sendAndRequestResponse() {
+        total_amount=0;
+         String url = "http://subjibag.esy.es/user_app/getCart.php";
+
+        //RequestQueue initialized
+        RequestQueue mRequestQueue = Volley.newRequestQueue(this);
+
+        //String Request initialized
+        StringRequest mStringRequest = new StringRequest(Request.Method.POST, url, new Response.Listener<String>() {
+            @Override
+            public void onResponse(String response) {
+
+                progressDialog.dismiss();
+                Log.i("TAG","Response FOR CART  :" + response);
+
+                String jsonresponse = response;
+                try {
+                    JSONArray arr = new JSONArray(jsonresponse);
+                    for (int i = 0; i < arr.length(); i++) {
+                        arrayListCart.add(new CartData(
+                                arr.getJSONObject(i).getString("id"),
+                                arr.getJSONObject(i).getString("product_id"),
+                                arr.getJSONObject(i).getString("quantity"),
+                                arr.getJSONObject(i).getString("price"),
+                                arr.getJSONObject(i).getString("product_url"),
+                                arr.getJSONObject(i).getString("product_name"),
+                                arr.getJSONObject(i).getString("product_weight")));
+                        total_amount+=( Integer.parseInt(arr.getJSONObject(i).getString("price"))*Integer.parseInt(arr.getJSONObject(i).getString("quantity")));
+                    }
+
+                    tvAmount.setText("Total = "+total_amount);
+
+                } catch (JSONException e) {
+                    e.printStackTrace();
+                }
+                adapter = new MyCartAdapter(arrayListCart);
+                recyclerView.setAdapter(adapter);
+
+
+            }
+        }, new Response.ErrorListener() {
+            @Override
+            public void onErrorResponse(VolleyError error) {
+                //Log.i("TAG","Error :" + error.toString());
+            }
+        }){
+            @Override
+            protected Map<String,String> getParams() throws AuthFailureError {
+                Map<String,String> params = new HashMap<String,String>();
+                params.put("user_id",currentUser.getUid());
+                Log.i("IDDD",currentUser.getUid());
+                return  params;
+            }
+        };
+
+        mRequestQueue.add(mStringRequest);
+    }
+
+    public class CartData{
+        String id;
+        String product_id;
+        String quantity;
+        String price;
+        String product_url;
+        String product_name;
+        String product_weight;
+
+        public CartData(String id, String product_id, String quantity, String price, String product_url, String product_name, String product_weight) {
+            this.id = id;
+            this.product_id = product_id;
+            this.quantity = quantity;
+            this.price = price;
+            this.product_url = product_url;
+            this.product_name = product_name;
+            this.product_weight = product_weight;
+        }
+
+        public String getPrice() {
+            return price;
+        }
+
+        public void setPrice(String price) {
+            this.price = price;
+        }
+
+        public String getId() {
+            return id;
+        }
+
+        public void setId(String id) {
+            this.id = id;
+        }
+
+        public String getProduct_id() {
+            return product_id;
+        }
+
+        public void setProduct_id(String product_id) {
+            this.product_id = product_id;
+        }
+
+        public String getQuantity() {
+            return quantity;
+        }
+
+        public void setQuantity(String quantity) {
+            this.quantity = quantity;
+        }
+
+        public String getProduct_url() {
+            return product_url;
+        }
+
+        public void setProduct_url(String product_url) {
+            this.product_url = product_url;
+        }
+
+        public String getProduct_name() {
+            return product_name;
+        }
+
+        public void setProduct_name(String product_name) {
+            this.product_name = product_name;
+        }
+
+        public String getProduct_weight() {
+            return product_weight;
+        }
+
+        public void setProduct_weight(String product_weight) {
+            this.product_weight = product_weight;
+        }
+    }
+
+    public class MyCartAdapter extends RecyclerView.Adapter<MyCartAdapter.CartDataViewHolder> {
+        ArrayList<CartData> arrayListCart;
+        public MyCartAdapter(ArrayList<CartData> arrayListCart)
+        {
+            this.arrayListCart=arrayListCart;
+        }
+
+        @NonNull
+        @Override
+        public CartDataViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+            LayoutInflater layoutInflater = LayoutInflater.from(parent.getContext());
+            View itemView = layoutInflater.inflate(R.layout.layout_cart,parent,false);
+            return new CartDataViewHolder(itemView);
+        }
+
+        @Override
+        public void onBindViewHolder(@NonNull CartDataViewHolder holder, int position) {
+            final CartData cartData = arrayListCart.get(position);
+
+            Picasso.get().load(cartData.getProduct_url())
+                    .placeholder(R.drawable.ico_basket1)
+                    .into(holder.imgProduct);
+
+            holder.tvProduct.setText(cartData.getProduct_name());
+
+            holder.tvUnits.setText(cartData.getProduct_weight());
+            holder.tvPrice.setText("₹"+cartData.getPrice());
+            holder.tvPrice.setText("₹"+cartData.getPrice());
+            holder.tvPriceDescription.setText(cartData.getPrice()+" x "+cartData.getQuantity()+" = ₹"+(Integer.parseInt(cartData.getPrice())*Integer.parseInt(cartData.getQuantity())));
+
+        }
+
+        @Override
+        public int getItemCount() {
+            return arrayListCart.size();
+        }
+
+
+        public class CartDataViewHolder extends RecyclerView.ViewHolder {
+            ImageView imgProduct;
+            TextView tvProduct;
+            TextView tvUnits;
+            TextView tvPrice;
+            TextView tvPriceDescription;
+            public CartDataViewHolder(@NonNull View itemView) {
+                super(itemView);
+                imgProduct = itemView.findViewById(R.id.imgProduct);
+                tvProduct = itemView.findViewById(R.id.tvProduct);
+                tvUnits = itemView.findViewById(R.id.tvUnits);
+                tvPrice = itemView.findViewById(R.id.tvPrice);
+                tvPriceDescription = itemView.findViewById(R.id.tvPriceDescription);
+            }
+        }
+    }
+}                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 
