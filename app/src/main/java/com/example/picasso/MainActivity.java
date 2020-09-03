@@ -21,6 +21,7 @@ public class MainActivity extends AppCompatActivity {
                 .placeholder(R.drawable.loading)
                 .error(R.drawable.error)
                 .into(imgShow);
+        //Picasso code ends here
 
     }
 }
